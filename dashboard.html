@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - BookMyCampus</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="header-logo">
+                <svg width="40" height="40" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="headerLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#e8eaf6;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <rect x="10" y="12" width="40" height="36" rx="3" fill="url(#headerLogoGradient)"/>
+                    <rect x="15" y="20" width="30" height="3" rx="1" fill="#667eea" opacity="0.8"/>
+                    <rect x="15" y="27" width="30" height="3" rx="1" fill="#667eea" opacity="0.8"/>
+                    <rect x="15" y="34" width="20" height="3" rx="1" fill="#667eea" opacity="0.8"/>
+                    <path d="M 10 12 L 30 3 L 50 12" fill="url(#headerLogoGradient)" stroke="#e8eaf6" stroke-width="2"/>
+                </svg>
+                <h1>BookMyCampus</h1>
+            </div>
+            <div class="user-info">
+                <span id="userName">User</span>
+                <span class="role-badge" id="userRole">Role</span>
+                <button class="btn-logout" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <nav>
+                <a href="#" class="nav-item active user-only" data-section="book-resource">
+                    <span class="icon">📅</span>
+                    Book Resource
+                </a>
+                <a href="#" class="nav-item" data-section="available-resources">
+                    <span class="icon">🏢</span>
+                    Available Resources
+                </a>
+                <a href="#" class="nav-item user-only" data-section="my-bookings">
+                    <span class="icon">📋</span>
+                    My Bookings
+                </a>
+                <a href="#" class="nav-item" data-section="notifications">
+                    <span class="icon">🔔</span>
+                    Notifications
+                    <span class="notification-badge" id="notificationCount">0</span>
+                </a>
+                <a href="#" class="nav-item" data-section="statistics">
+                    <span class="icon">📊</span>
+                    Statistics
+                </a>
+                <a href="#" class="nav-item admin-only" data-section="admin-panel" style="display: none;">
+                    <span class="icon">⚙️</span>
+                    Admin Panel
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Book Resource Section -->
+            <section id="book-resource" class="content-section active">
+                <h2>📅 Book a Resource</h2>
+                <div class="card">
+                    <form id="bookingForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="bookingName">Your Name</label>
+                                <input type="text" id="bookingName" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label for="bookingRole">Role</label>
+                                <input type="text" id="bookingRole" readonly>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="resourceSelect">Select Resource *</label>
+                                <select id="resourceSelect" required>
+                                    <option value="">-- Select Resource --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="bookingDate">Date *</label>
+                                <input type="date" id="bookingDate" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="startTime">Start Time *</label>
+                                <input type="time" id="startTime" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="endTime">End Time *</label>
+                                <input type="time" id="endTime" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="purpose">Purpose *</label>
+                            <textarea id="purpose" rows="4" placeholder="Enter the purpose of booking" required></textarea>
+                        </div>
+
+                        <div class="resource-info" id="resourceInfo" style="display: none;">
+                            <h4>📍 Location Details</h4>
+                            <p><strong>Building:</strong> <span id="infoBuilding"></span></p>
+                            <p><strong>Floor:</strong> <span id="infoFloor"></span></p>
+                            <p><strong>Room:</strong> <span id="infoRoom"></span></p>
+                            <p><strong>Capacity:</strong> <span id="infoCapacity"></span></p>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Submit Booking Request</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Available Resources Section -->
+            <section id="available-resources" class="content-section">
+                <h2>🏢 Available & Occupied Resources</h2>
+                <div class="filters">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="classroom">Classrooms</button>
+                    <button class="filter-btn" data-filter="lab">Labs</button>
+                    <button class="filter-btn" data-filter="auditorium">Auditoriums</button>
+                    <button class="filter-btn" data-filter="sport ground">Sports</button>
+                    <button class="filter-btn" data-filter="workshop">Workshops</button>
+                    <button class="filter-btn" data-filter="meeting room">Meeting Rooms</button>
+                </div>
+                <div class="resources-grid" id="resourcesGrid">
+                    <!-- Resources will be loaded here -->
+                </div>
+            </section>
+
+            <!-- My Bookings Section -->
+            <section id="my-bookings" class="content-section">
+                <h2>📋 My Bookings</h2>
+                <div class="bookings-container" id="myBookingsContainer">
+                    <!-- Bookings will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Notifications Section -->
+            <section id="notifications" class="content-section">
+                <h2>🔔 Notifications</h2>
+                <div class="notifications-container" id="notificationsContainer">
+                    <!-- Notifications will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Statistics Section -->
+            <section id="statistics" class="content-section">
+                <h2>📊 Most Used Resources</h2>
+                <div class="card">
+                    <canvas id="statsChart"></canvas>
+                </div>
+            </section>
+
+            <!-- Admin Panel Section -->
+            <section id="admin-panel" class="content-section">
+                <h2>⚙️ Admin Panel</h2>
+                
+                <!-- Tabs for Admin Panel -->
+                <div class="admin-tabs">
+                    <button class="admin-tab-btn active" data-tab="manage-bookings">Manage Bookings</button>
+                    <button class="admin-tab-btn" data-tab="manage-resources">Manage Resources</button>
+                </div>
+
+                <!-- Manage Bookings Tab -->
+                <div id="manage-bookings" class="admin-tab-content active">
+                    <h3>📋 Booking Requests</h3>
+                    <div class="admin-bookings-container" id="adminBookingsContainer">
+                        <!-- Admin bookings will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Manage Resources Tab -->
+                <div id="manage-resources" class="admin-tab-content">
+                    <div class="admin-resource-header">
+                        <h3>🏢 Resource Management</h3>
+                        <button class="btn btn-primary" onclick="showAddResourceModal()">+ Add New Resource</button>
+                    </div>
+                    <div class="admin-resources-container" id="adminResourcesContainer">
+                        <!-- Admin resources will be loaded here -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Add/Edit Resource Modal -->
+    <div id="resourceModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeResourceModal()">&times;</span>
+            <h2 id="modalTitle">Add New Resource</h2>
+            <form id="resourceForm">
+                <input type="hidden" id="resourceId">
+                
+                <div class="form-group">
+                    <label for="resourceName">Resource Name *</label>
+                    <input type="text" id="resourceName" required placeholder="e.g., Computer Lab 3">
+                </div>
+
+                <div class="form-group">
+                    <label for="resourceType">Resource Type *</label>
+                    <select id="resourceType" required>
+                        <option value="">-- Select Type --</option>
+                        <option value="classroom">Classroom</option>
+                        <option value="lab">Lab</option>
+                        <option value="auditorium">Auditorium</option>
+                        <option value="sport ground">Sport Ground</option>
+                        <option value="workshop">Workshop</option>
+                        <option value="meeting room">Meeting Room</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="resourceBuilding">Building *</label>
+                        <input type="text" id="resourceBuilding" required placeholder="e.g., Block A">
+                    </div>
+                    <div class="form-group">
+                        <label for="resourceFloor">Floor *</label>
+                        <input type="text" id="resourceFloor" required placeholder="e.g., 2">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="resourceRoom">Room Number *</label>
+                        <input type="text" id="resourceRoom" required placeholder="e.g., 203">
+                    </div>
+                    <div class="form-group">
+                        <label for="resourceCapacity">Capacity *</label>
+                        <input type="number" id="resourceCapacity" required placeholder="e.g., 50">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="resourceStatus">Status *</label>
+                    <select id="resourceStatus" required>
+                        <option value="available">Available</option>
+                        <option value="occupied">Occupied</option>
+                        <option value="maintenance">Maintenance</option>
+                    </select>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeResourceModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Resource</button>
+                </div>
+            </form>
+        </div>
+    </div>
+        </main>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>
