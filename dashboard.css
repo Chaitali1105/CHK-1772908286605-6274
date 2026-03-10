@@ -576,6 +576,178 @@ body {
     transform: translateY(-1px);
 }
 
+/* ============ SMART SLOT RECOMMENDATION ============ */
+#checkAvailabilityBtn {
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #fff;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#checkAvailabilityBtn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
+#checkAvailabilityBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.smart-slot-panel {
+    margin-bottom: 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    animation: ssPanelIn 0.3s ease;
+}
+
+@keyframes ssPanelIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.ss-header {
+    padding: 14px 18px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ss-header.ss-available {
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+    color: #14532d;
+    border-bottom: 2px solid #16a34a;
+}
+
+.ss-header.ss-unavailable {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #78350f;
+    border-bottom: 2px solid #f59e0b;
+}
+
+.ss-icon {
+    font-size: 18px;
+}
+
+.ss-section-title {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 12px 18px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.ss-conflicts {
+    padding: 0 12px 12px;
+}
+
+.ss-conflict-card {
+    padding: 10px 14px;
+    margin: 6px;
+    border-radius: 8px;
+    border-left: 3px solid;
+    font-size: 13px;
+}
+
+.ss-conflict-card.ss-tt {
+    background: #eff6ff;
+    border-left-color: #2563eb;
+}
+
+.ss-conflict-card.ss-booking {
+    background: #fef2f2;
+    border-left-color: #ef4444;
+}
+
+.ss-conflict-time {
+    font-weight: 600;
+    margin-bottom: 3px;
+    color: var(--text-primary);
+}
+
+.ss-conflict-detail {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.ss-conflict-status {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #fbbf24;
+    color: #78350f;
+    letter-spacing: 0.5px;
+}
+
+.ss-recommendations {
+    padding: 0 12px 16px;
+}
+
+.ss-rec-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 6px;
+}
+
+.ss-rec-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 10px 18px;
+    border: 2px solid var(--primary);
+    border-radius: 10px;
+    background: #eff6ff;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-width: 140px;
+}
+
+.ss-rec-slot:hover {
+    background: var(--primary);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.ss-rec-time {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.ss-rec-action {
+    font-size: 11px;
+    opacity: 0.7;
+    font-weight: 600;
+}
+
+.ss-rec-slot:hover .ss-rec-action {
+    opacity: 1;
+}
+
+.ss-no-recs {
+    padding: 14px 18px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+    font-style: italic;
+}
+
 /* ============ WITHDRAW BUTTON ============ */
 .btn-withdraw {
     background: linear-gradient(135deg, #f59e0b, #d97706);

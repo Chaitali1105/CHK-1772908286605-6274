@@ -315,6 +315,153 @@ function setupBookingForm() {
     });
 }
 
+// ============ SMART SLOT RECOMMENDATION ============
+async function checkSmartSlot() {
+    const resourceId = document.getElementById('resourceSelect').value;
+    const date = document.getElementById('bookingDate').value;
+    const startTime = document.getElementById('startTime').value;
+    const endTime = document.getElementById('endTime').value;
+
+    // Validate inputs
+    if (!resourceId || !date || !startTime || !endTime) {
+        showMessage('Please fill in Resource, Date, Start Time, and End Time first', 'error');
+        return;
+    }
+
+    if (startTime >= endTime) {
+        showMessage('End time must be after start time', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('checkAvailabilityBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Checking...';
+
+    try {
+        const params = new URLSearchParams({
+            resource_id: resourceId,
+            desired_date: date,
+            start_time: startTime,
+            end_time: endTime,
+            user_role: currentUser.role
+        });
+
+        const response = await fetch(`${API_URL}/bookings/smart-slots?${params}`);
+        const data = await response.json();
+
+        if (data.success) {
+            renderSmartSlotPanel(data);
+        } else {
+            showMessage(data.message || 'Failed to check availability', 'error');
+        }
+    } catch (error) {
+        console.error('Error checking smart slot:', error);
+        showMessage('Failed to check availability', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Check Availability';
+    }
+}
+
+function renderSmartSlotPanel(data) {
+    const panel = document.getElementById('smartSlotPanel');
+    const header = document.getElementById('ssHeader');
+    const conflictsDiv = document.getElementById('ssConflicts');
+    const recsDiv = document.getElementById('ssRecommendations');
+
+    panel.style.display = 'block';
+
+    if (data.available) {
+        // Slot is FREE
+        header.className = 'ss-header ss-available';
+        header.innerHTML = '<span class="ss-icon">✅</span> <strong>Slot Available!</strong> This time slot is free. You can proceed with your booking.';
+        conflictsDiv.style.display = 'none';
+        recsDiv.style.display = 'none';
+        return;
+    }
+
+    // Slot is OCCUPIED
+    header.className = 'ss-header ss-unavailable';
+    header.innerHTML = '<span class="ss-icon">⚠️</span> <strong>Slot Unavailable</strong> — This time slot has conflicts. See details below.';
+
+    // Show conflicts
+    let conflictHTML = '';
+
+    if (data.timetable_conflicts.length > 0) {
+        conflictHTML += '<div class="ss-section-title">📚 Timetable Conflicts</div>';
+        conflictHTML += data.timetable_conflicts.map(t =>
+            `<div class="ss-conflict-card ss-tt">
+                <div class="ss-conflict-time">🕐 ${formatTimeLabel(t.time)}</div>
+                <div class="ss-conflict-detail"><strong>${escapeHTML(t.subject)}</strong> (${t.type})</div>
+                <div class="ss-conflict-detail">${escapeHTML(t.faculty)} — ${escapeHTML(t.class_name)}</div>
+            </div>`
+        ).join('');
+    }
+
+    if (data.booking_conflicts.length > 0) {
+        conflictHTML += '<div class="ss-section-title">📋 Booking Conflicts</div>';
+        conflictHTML += data.booking_conflicts.map(c => {
+            if (currentUser.role === 'admin') {
+                return `<div class="ss-conflict-card ss-booking">
+                    <div class="ss-conflict-time">🕐 ${formatTimeLabel(c.time)}</div>
+                    <div class="ss-conflict-detail"><strong>Booked by:</strong> ${escapeHTML(c.booked_by)} (${c.role})</div>
+                    <div class="ss-conflict-detail"><strong>Purpose:</strong> ${escapeHTML(c.purpose)}</div>
+                    <div class="ss-conflict-status">${c.status.toUpperCase()}</div>
+                </div>`;
+            } else {
+                return `<div class="ss-conflict-card ss-booking">
+                    <div class="ss-conflict-time">🕐 ${formatTimeLabel(c.time)}</div>
+                    <div class="ss-conflict-status">${c.status.toUpperCase()}</div>
+                </div>`;
+            }
+        }).join('');
+    }
+
+    conflictsDiv.innerHTML = conflictHTML;
+    conflictsDiv.style.display = conflictHTML ? 'block' : 'none';
+
+    // Show recommendations
+    if (data.recommendations.length > 0) {
+        let recHTML = '<div class="ss-section-title">💡 Recommended Alternative Slots</div>';
+        recHTML += '<div class="ss-rec-grid">';
+        recHTML += data.recommendations.map(r =>
+            `<button class="ss-rec-slot" onclick="applyRecommendedSlot('${r.start_time}', '${r.end_time}')">
+                <span class="ss-rec-time">${formatTime12(r.start_time)} – ${formatTime12(r.end_time)}</span>
+                <span class="ss-rec-action">Use this slot →</span>
+            </button>`
+        ).join('');
+        recHTML += '</div>';
+        recsDiv.innerHTML = recHTML;
+        recsDiv.style.display = 'block';
+    } else {
+        recsDiv.innerHTML = '<div class="ss-no-recs">No alternative slots available on this date for this resource.</div>';
+        recsDiv.style.display = 'block';
+    }
+}
+
+function applyRecommendedSlot(start, end) {
+    document.getElementById('startTime').value = start;
+    document.getElementById('endTime').value = end;
+    showMessage('Time slot updated! Click "Check Availability" again to verify, or submit your booking.', 'success');
+    document.getElementById('smartSlotPanel').style.display = 'none';
+}
+
+function formatTimeLabel(timeRange) {
+    const parts = timeRange.split(' - ');
+    if (parts.length === 2) {
+        return formatTime12(parts[0].trim()) + ' – ' + formatTime12(parts[1].trim());
+    }
+    return timeRange;
+}
+
+function formatTime12(t) {
+    const [h, m] = t.split(':');
+    const hr = parseInt(h);
+    const ampm = hr >= 12 ? 'PM' : 'AM';
+    const hr12 = hr % 12 || 12;
+    return `${hr12}:${m || '00'} ${ampm}`;
+}
+
 // Load bookings
 async function loadBookings() {
     try {

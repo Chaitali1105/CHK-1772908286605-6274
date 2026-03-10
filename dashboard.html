@@ -128,6 +128,15 @@
                             <p><strong>Capacity:</strong> <span id="infoCapacity"></span></p>
                         </div>
 
+                        <button type="button" class="btn btn-secondary" id="checkAvailabilityBtn" onclick="checkSmartSlot()">🔍 Check Availability</button>
+
+                        <!-- Smart Slot Recommendation Panel -->
+                        <div class="smart-slot-panel" id="smartSlotPanel" style="display: none;">
+                            <div class="ss-header" id="ssHeader"></div>
+                            <div class="ss-conflicts" id="ssConflicts" style="display: none;"></div>
+                            <div class="ss-recommendations" id="ssRecommendations" style="display: none;"></div>
+                        </div>
+
                         <button type="submit" class="btn btn-primary">Submit Booking Request</button>
                     </form>
                 </div>
