@@ -95,16 +95,6 @@ The booking system implements full ACID properties to prevent double bookings:
 - **Isolation**: Row-level locking (`FOR UPDATE`) prevents concurrent users from booking the same resource simultaneously.
 - **Durability**: Once a booking is confirmed (committed), it persists even if the system crashes.
 
-**Transaction Flow:**
-```sql
-BEGIN TRANSACTION
-  SELECT * FROM resources WHERE id = ? FOR UPDATE  -- Lock the resource
-  SELECT * FROM bookings WHERE ... FOR UPDATE      -- Lock conflicting bookings
-  -- Validate and check conflicts
-  INSERT INTO bookings (...)                       -- Create booking
-  INSERT INTO notifications (...)                  -- Create notification
-COMMIT  -- Make changes permanent
-```
 
 This ensures **zero possibility of double bookings** even under high concurrent load.
 
@@ -311,66 +301,13 @@ Authenticate a user
 }
 ```
 
-## 🚨 Important Notes
-
-- Update MySQL credentials in `backend/db.js` before running
-- Ensure MySQL server is running before starting the backend
-- **Double bookings are IMPOSSIBLE** - System uses ACID transactions with row-level locking
-- **Concurrent booking attempts are handled safely** - First request wins, others get conflict error
-- Password must be at least 6 characters long
-- Email must be unique across all users
-- Resources with existing bookings cannot be deleted (maintains data integrity)
-- All booking operations are atomic and isolated
-
 ## 🎯 Next Steps
 
-This authentication and booking system can be extended with:
-- JWT token-based authentication
+This authentication and booking system can be extended with
 - Password reset functionality
 - Email verification
-- Payment integration for paid facilities
 - QR code generation for bookings
-- Mobile app integration
-- Calendar view for bookings
-- Recurring booking support
-- Push notifications
-- Resource availability calendar
-- Booking history export (PDF/Excel)
 - Multi-language support
-
----
-
-## 🏆 Perfect for Hackathons & Academic Projects!
-
-This system demonstrates:
-- ✅ Full-stack development (Frontend + Backend + Database)
-- ✅ ACID transaction implementation
-- ✅ Race condition prevention
-- ✅ Role-based access control
-- ✅ RESTful API design
-- ✅ Modern UI/UX principles
-- ✅ Data visualization with charts
-- ✅ Security best practices
-- ✅ Scalable architecture
-- ✅ Complete CRUD operations
-
----
-
-## 📞 Support
-
-For issues or questions:
-1. Check the [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed instructions
-2. Verify all dependencies are installed
-3. Ensure MySQL is running and credentials are correct
-4. Check browser console for frontend errors
-5. Check terminal for backend errors
-
----
-
-## 📄 License
-
-MIT License - Free to use for hackathons, learning, and academic purposes!
-
 ---
 
 ## 💡 Key Technical Achievements
@@ -387,13 +324,6 @@ END TRANSACTION
 ```
 **Result**: Even if 1000 users try to book the same time slot simultaneously, only 1 succeeds.
 
-### 🎨 Logo Design
-Custom SVG logo featuring:
-- Gradient book icon matching the purple theme
-- Floating animation effect
-- Responsive sizing across devices
-- Drop shadow for depth
-
 ### 🏗️ Architecture
 - **Frontend**: Vanilla JavaScript (no frameworks needed)
 - **Backend**: Node.js + Express (RESTful API)
@@ -409,3 +339,4 @@ Custom SVG logo featuring:
   <br>
   <p><em>Zero Double Bookings. Maximum Efficiency.</em></p>
 </div>
+
