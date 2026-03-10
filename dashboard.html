@@ -4,27 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - BookMyCampus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="dashboard.css">
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.9/index.global.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.9/index.global.min.js"></script>
 </head>
 <body>
     <!-- Header -->
     <header class="header">
         <div class="header-content">
             <div class="header-logo">
-                <svg width="40" height="40" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <linearGradient id="headerLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#e8eaf6;stop-opacity:1" />
-                        </linearGradient>
-                    </defs>
-                    <rect x="10" y="12" width="40" height="36" rx="3" fill="url(#headerLogoGradient)"/>
-                    <rect x="15" y="20" width="30" height="3" rx="1" fill="#667eea" opacity="0.8"/>
-                    <rect x="15" y="27" width="30" height="3" rx="1" fill="#667eea" opacity="0.8"/>
-                    <rect x="15" y="34" width="20" height="3" rx="1" fill="#667eea" opacity="0.8"/>
-                    <path d="M 10 12 L 30 3 L 50 12" fill="url(#headerLogoGradient)" stroke="#e8eaf6" stroke-width="2"/>
-                </svg>
+                <img src="images/logo-icon.svg" alt="BookMyCampus" style="height: 45px; width: auto;">
                 <h1>BookMyCampus</h1>
             </div>
             <div class="user-info">
@@ -56,6 +49,14 @@
                     <span class="icon">🔔</span>
                     Notifications
                     <span class="notification-badge" id="notificationCount">0</span>
+                </a>
+                <a href="#" class="nav-item" data-section="booked-resources">
+                    <span class="icon">📑</span>
+                    Booked Resources
+                </a>
+                <a href="#" class="nav-item" data-section="campus-calendar">
+                    <span class="icon">📆</span>
+                    Campus Calendar
                 </a>
                 <a href="#" class="nav-item" data-section="statistics">
                     <span class="icon">📊</span>
@@ -163,9 +164,108 @@
 
             <!-- Statistics Section -->
             <section id="statistics" class="content-section">
-                <h2>📊 Most Used Resources</h2>
-                <div class="card">
-                    <canvas id="statsChart"></canvas>
+                <h2>📊 Campus Resource Analytics</h2>
+                <div class="stats-grid">
+                    <!-- Top Bar Chart - Most Used Resources -->
+                    <div class="stats-card stats-card-wide">
+                        <div class="stats-card-header">
+                            <h3>Most Used Resources</h3>
+                            <p class="stats-subtitle">Top 8 resources ranked by total booking count</p>
+                        </div>
+                        <div class="stats-chart-container">
+                            <canvas id="statsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Donut Chart - Resource Utilization by Type -->
+                    <div class="stats-card">
+                        <div class="stats-card-header">
+                            <h3>Resource Utilization by Type</h3>
+                            <p class="stats-subtitle">Booking share across campus resource categories</p>
+                        </div>
+                        <div class="stats-chart-container donut-container">
+                            <canvas id="typeChart"></canvas>
+                        </div>
+                        <div id="typeLegend" class="donut-legend"></div>
+                    </div>
+
+                    <!-- Summary Stats Cards -->
+                    <div class="stats-card">
+                        <div class="stats-card-header">
+                            <h3>Quick Overview</h3>
+                            <p class="stats-subtitle">Key campus metrics at a glance</p>
+                        </div>
+                        <div id="summaryStats" class="summary-stats-grid">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Booked Resources Section -->
+            <section id="booked-resources" class="content-section">
+                <h2>📑 All Booked Resources</h2>
+                <p class="booked-resources-subtitle">Overview of all confirmed resource bookings across campus. This data is read-only.</p>
+                <div class="booked-resources-filters">
+                    <input type="text" id="bookedSearchInput" class="booked-search-input" placeholder="Search by name, resource, or location...">
+                    <select id="bookedTypeFilter" class="booked-type-filter">
+                        <option value="all">All Types</option>
+                        <option value="classroom">Classroom</option>
+                        <option value="lab">Lab</option>
+                        <option value="auditorium">Auditorium</option>
+                        <option value="sport ground">Sport Ground</option>
+                        <option value="workshop">Workshop</option>
+                        <option value="meeting room">Meeting Room</option>
+                    </select>
+                </div>
+                <div class="booked-resources-table-wrapper">
+                    <table class="booked-resources-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Resource Name</th>
+                                <th>Type</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Location</th>
+                                <th>Booked By</th>
+                                <th>Purpose</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bookedResourcesBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="bookedResourcesEmpty" class="empty-state" style="display:none;">
+                    <div class="icon">📭</div>
+                    <h3>No Booked Resources</h3>
+                    <p>There are no approved bookings at the moment.</p>
+                </div>
+            </section>
+
+            <!-- Campus Calendar Section -->
+            <section id="campus-calendar" class="content-section">
+                <h2>📆 Campus Schedule Calendar</h2>
+                <p class="calendar-subtitle">View all approved bookings across campus. Click on events for details.</p>
+                <div class="calendar-filters">
+                    <button class="cal-filter-btn active" data-calfilter="all">All Resources</button>
+                    <button class="cal-filter-btn" data-calfilter="classroom">Classrooms</button>
+                    <button class="cal-filter-btn" data-calfilter="lab">Labs</button>
+                    <button class="cal-filter-btn" data-calfilter="auditorium">Auditoriums</button>
+                    <button class="cal-filter-btn" data-calfilter="sport ground">Sports</button>
+                    <button class="cal-filter-btn" data-calfilter="workshop">Workshops</button>
+                    <button class="cal-filter-btn" data-calfilter="meeting room">Meeting Rooms</button>
+                </div>
+                <div class="calendar-wrapper">
+                    <div id="campusCalendar"></div>
+                </div>
+                <div class="calendar-legend">
+                    <div class="legend-item"><span class="legend-dot" style="background: linear-gradient(135deg, #4CAF50, #66BB6A)"></span> Classroom</div>
+                    <div class="legend-item"><span class="legend-dot" style="background: linear-gradient(135deg, #2196F3, #42A5F5)"></span> Lab</div>
+                    <div class="legend-item"><span class="legend-dot" style="background: linear-gradient(135deg, #9C27B0, #BA68C8)"></span> Auditorium</div>
+                    <div class="legend-item"><span class="legend-dot" style="background: linear-gradient(135deg, #FF5722, #FF8A65)"></span> Sports</div>
+                    <div class="legend-item"><span class="legend-dot" style="background: linear-gradient(135deg, #FF9800, #FFB74D)"></span> Workshop</div>
+                    <div class="legend-item"><span class="legend-dot" style="background: linear-gradient(135deg, #00BCD4, #4DD0E1)"></span> Meeting Room</div>
                 </div>
             </section>
 
@@ -181,7 +281,7 @@
 
                 <!-- Manage Bookings Tab -->
                 <div id="manage-bookings" class="admin-tab-content active">
-                    <h3>📋 Booking Requests</h3>
+                    <h3>📋 Booking Requests / Wait List</h3>
                     <div class="admin-bookings-container" id="adminBookingsContainer">
                         <!-- Admin bookings will be loaded here -->
                     </div>

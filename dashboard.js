@@ -5,7 +5,6 @@ const API_URL = 'http://localhost:5000';
 let currentUser = null;
 let allResources = [];
 let allBookings = [];
-let chart = null;
 
 // Initialize dashboard on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -54,11 +53,14 @@ function initializeDashboard() {
         document.getElementById('bookingRole').value = currentUser.role;
     }
 
-    // Set minimum date to today
+    // Set minimum date to today and maximum to Dec 31 of current year
     const today = new Date().toISOString().split('T')[0];
+    const currentYear = new Date().getFullYear();
+    const maxDate = `${currentYear}-12-31`;
     const dateInput = document.getElementById('bookingDate');
     if (dateInput) {
         dateInput.setAttribute('min', today);
+        dateInput.setAttribute('max', maxDate);
     }
 
     // Load initial data
@@ -109,6 +111,10 @@ function setupNavigation() {
                 loadNotifications();
             } else if (targetSection === 'statistics') {
                 loadStatistics();
+            } else if (targetSection === 'booked-resources') {
+                loadBookedResources();
+            } else if (targetSection === 'campus-calendar') {
+                initCalendar();
             }
         });
     });
@@ -263,6 +269,14 @@ function setupBookingForm() {
             return;
         }
 
+        // Check date is within current year
+        const bookingYear = new Date(formData.booking_date).getFullYear();
+        const currentYear = new Date().getFullYear();
+        if (bookingYear > currentYear) {
+            showMessage(`Bookings are only allowed till 31st Dec ${currentYear}`, 'error');
+            return;
+        }
+
         // Disable submit button
         const submitBtn = form.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
@@ -280,7 +294,7 @@ function setupBookingForm() {
             const data = await response.json();
 
             if (data.success) {
-                showMessage(data.message, 'success');
+                showBookingPopup();
                 form.reset();
                 document.getElementById('bookingName').value = currentUser.name;
                 document.getElementById('bookingRole').value = currentUser.role;
@@ -343,6 +357,11 @@ function displayMyBookings(bookings) {
                 <p><strong>📍 Location:</strong> ${booking.location}</p>
                 <p><strong>📝 Purpose:</strong> ${booking.purpose}</p>
             </div>
+            ${booking.status === 'pending' || booking.status === 'approved' ? `
+                <div class="booking-actions">
+                    <button class="btn-withdraw" onclick="withdrawBooking(${booking.id})">Withdraw Request</button>
+                </div>
+            ` : ''}
         </div>
     `).join('');
 }
@@ -394,13 +413,14 @@ function displayAdminBookings(bookings) {
                 <p><strong>📍 Location:</strong> ${booking.location}</p>
                 <p><strong>📝 Purpose:</strong> ${booking.purpose}</p>
             </div>
-            ${booking.status === 'pending' ? `
+            ${booking.status === 'pending' || booking.status === 'approved' ? `
                 <div class="booking-actions">
-                    <button class="btn btn-success" onclick="approveBooking(${booking.id})">✓ Approve</button>
+                    ${booking.status === 'pending' ? `<button class="btn btn-success" onclick="approveBooking(${booking.id})">✓ Approve</button>` : ''}
                     <button class="btn btn-danger" onclick="rejectBooking(${booking.id})">✗ Reject</button>
+                    <button class="btn btn-danger" onclick="deleteBooking(${booking.id})">🗑️ Delete</button>
                 </div>
             ` : ''}
-            ${booking.status !== 'pending' ? `
+            ${booking.status === 'rejected' ? `
                 <div class="booking-actions">
                     <button class="btn btn-danger" onclick="deleteBooking(${booking.id})">🗑️ Delete</button>
                 </div>
@@ -523,7 +543,7 @@ function displayNotifications(notifications) {
     container.innerHTML = notifications.map(notification => `
         <div class="notification-card ${notification.is_read ? '' : 'unread'} ${notification.type}">
             <div class="notification-header">
-                <span class="notification-type">${notification.type}</span>
+                <span class="notification-type">${{approval:'APPROVED',rejection:'REJECTED',pending:'PENDING',info:'PENDING'}[notification.type]||notification.type.toUpperCase()}</span>
                 <span class="notification-time">${formatDateTime(notification.created_at)}</span>
             </div>
             <div class="notification-message">${notification.message}</div>
@@ -540,71 +560,227 @@ function updateNotificationBadge(notifications) {
 }
 
 // Load statistics
+let barChart = null;
+let donutChart = null;
+
 async function loadStatistics() {
     try {
-        const response = await fetch(`${API_URL}/stats/resources`);
-        const data = await response.json();
+        const [resourceRes, typeRes] = await Promise.all([
+            fetch(`${API_URL}/stats/resources`),
+            fetch(`${API_URL}/stats/types`)
+        ]);
+        const resourceData = await resourceRes.json();
+        const typeData = await typeRes.json();
 
-        if (data.success) {
-            displayStatistics(data.stats);
+        if (resourceData.success) {
+            displayBarChart(resourceData.stats);
+        }
+        if (typeData.success) {
+            displayDonutChart(typeData.types);
+            displaySummaryStats(typeData.summary);
         }
     } catch (error) {
         console.error('Error loading statistics:', error);
     }
 }
 
-// Display statistics
-function displayStatistics(stats) {
-    if (stats.length === 0) {
-        return;
-    }
+const typeColorPalette = {
+    'classroom': { bg: '#4FC3F7', border: '#039BE5' },
+    'lab': { bg: '#81C784', border: '#43A047' },
+    'auditorium': { bg: '#B39DDB', border: '#7E57C2' },
+    'sport ground': { bg: '#FFB74D', border: '#FB8C00' },
+    'workshop': { bg: '#FF8A65', border: '#E64A19' },
+    'meeting room': { bg: '#4DD0E1', border: '#00ACC1' }
+};
 
+function getBarColor(type) {
+    return typeColorPalette[type] || { bg: '#90CAF9', border: '#42A5F5' };
+}
+
+function displayBarChart(stats) {
+    if (!stats.length) return;
     const ctx = document.getElementById('statsChart');
+    if (barChart) barChart.destroy();
 
-    // Destroy existing chart if any
-    if (chart) {
-        chart.destroy();
-    }
+    const colors = stats.map(s => getBarColor(s.resource_type));
 
-    chart = new Chart(ctx, {
+    barChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: stats.map(s => s.resource_name),
             datasets: [{
-                label: 'Number of Bookings',
+                label: 'Bookings',
                 data: stats.map(s => s.booking_count),
-                backgroundColor: 'rgba(102, 126, 234, 0.8)',
-                borderColor: 'rgba(102, 126, 234, 1)',
-                borderWidth: 2
+                backgroundColor: colors.map(c => c.bg),
+                borderColor: colors.map(c => c.border),
+                borderWidth: 2,
+                borderRadius: 8,
+                borderSkipped: false,
+                barThickness: 28
             }]
         },
         options: {
             indexAxis: 'y',
             responsive: true,
-            maintainAspectRatio: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: {
                     display: true,
-                    position: 'top'
+                    position: 'top',
+                    labels: {
+                        generateLabels: function() {
+                            const seen = {};
+                            return stats.filter(s => {
+                                if (seen[s.resource_type]) return false;
+                                seen[s.resource_type] = true;
+                                return true;
+                            }).map(s => ({
+                                text: s.resource_type.charAt(0).toUpperCase() + s.resource_type.slice(1),
+                                fillStyle: getBarColor(s.resource_type).bg,
+                                strokeStyle: getBarColor(s.resource_type).border,
+                                lineWidth: 2,
+                                borderRadius: 3
+                            }));
+                        },
+                        padding: 16,
+                        usePointStyle: true,
+                        pointStyle: 'rectRounded',
+                        font: { size: 12, weight: '500' }
+                    }
                 },
-                title: {
-                    display: true,
-                    text: 'Most Booked Resources',
-                    font: {
-                        size: 18
+                tooltip: {
+                    backgroundColor: '#1e1e2f',
+                    titleFont: { size: 14, weight: '600' },
+                    bodyFont: { size: 13 },
+                    cornerRadius: 8,
+                    padding: 12,
+                    callbacks: {
+                        label: function(ctx) {
+                            return ` ${ctx.raw} bookings`;
+                        }
                     }
                 }
             },
             scales: {
                 x: {
                     beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
+                    grid: { color: 'rgba(0,0,0,0.06)', drawBorder: false },
+                    ticks: { font: { size: 12 }, color: '#888' }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { font: { size: 13, weight: '500' }, color: '#444' }
                 }
             }
         }
     });
+}
+
+function displayDonutChart(types) {
+    if (!types.length) return;
+    const ctx = document.getElementById('typeChart');
+    if (donutChart) donutChart.destroy();
+
+    const total = types.reduce((sum, t) => sum + t.booking_count, 0);
+    const colors = types.map(t => (typeColorPalette[t.resource_type] || { bg: '#90CAF9' }).bg);
+    const borderColors = types.map(t => (typeColorPalette[t.resource_type] || { border: '#42A5F5' }).border);
+
+    donutChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: types.map(t => t.resource_type.charAt(0).toUpperCase() + t.resource_type.slice(1)),
+            datasets: [{
+                data: types.map(t => t.booking_count),
+                backgroundColor: colors,
+                borderColor: borderColors,
+                borderWidth: 2,
+                hoverBorderWidth: 3,
+                hoverOffset: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e1e2f',
+                    titleFont: { size: 14, weight: '600' },
+                    bodyFont: { size: 13 },
+                    cornerRadius: 8,
+                    padding: 12,
+                    callbacks: {
+                        label: function(ctx) {
+                            const pct = Math.round((ctx.raw / total) * 100);
+                            return ` ${ctx.raw} bookings (${pct}%)`;
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [{
+            id: 'centerText',
+            beforeDraw(chart) {
+                const { width, height, ctx } = chart;
+                ctx.restore();
+                const cx = width / 2;
+                const cy = height / 2;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                ctx.font = 'bold 32px Segoe UI';
+                ctx.fillStyle = '#333';
+                ctx.fillText(total, cx, cy - 14);
+
+                ctx.font = '500 13px Segoe UI';
+                ctx.fillStyle = '#888';
+                ctx.fillText('TOTAL', cx, cy + 10);
+
+                ctx.font = '400 11px Segoe UI';
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('utilization', cx, cy + 26);
+                ctx.save();
+            }
+        }]
+    });
+
+    // Build custom legend
+    const legendEl = document.getElementById('typeLegend');
+    legendEl.innerHTML = types.map(t => {
+        const pct = Math.round((t.booking_count / total) * 100);
+        const color = (typeColorPalette[t.resource_type] || { bg: '#90CAF9' }).bg;
+        const name = t.resource_type.charAt(0).toUpperCase() + t.resource_type.slice(1);
+        return `<div class="donut-legend-item">
+            <span class="donut-legend-dot" style="background: ${color}"></span>
+            <div class="donut-legend-info">
+                <span class="donut-legend-name">${name}</span>
+                <span class="donut-legend-pct">${pct}%</span>
+            </div>
+            <span class="donut-legend-count">${t.booking_count} bookings</span>
+            <div class="donut-legend-bar"><div class="donut-legend-bar-fill" style="width: ${pct}%; background: ${color}"></div></div>
+        </div>`;
+    }).join('');
+}
+
+function displaySummaryStats(summary) {
+    if (!summary) return;
+    const el = document.getElementById('summaryStats');
+    const items = [
+        { icon: '📊', label: 'Total Bookings', value: summary.total_bookings, color: '#1d4ed8' },
+        { icon: '✅', label: 'Approved', value: summary.approved_count, color: '#10b981' },
+        { icon: '⏳', label: 'Pending', value: summary.pending_count, color: '#f59e0b' },
+        { icon: '❌', label: 'Rejected', value: summary.rejected_count, color: '#ef4444' },
+        { icon: '🏢', label: 'Resources Used', value: summary.unique_resources, color: '#0ea5e9' },
+        { icon: '👥', label: 'Active Users', value: summary.unique_users, color: '#8b5cf6' }
+    ];
+    el.innerHTML = items.map(item => `
+        <div class="summary-stat-card">
+            <div class="summary-stat-icon" style="background: ${item.color}15; color: ${item.color}">${item.icon}</div>
+            <div class="summary-stat-value" style="color: ${item.color}">${item.value || 0}</div>
+            <div class="summary-stat-label">${item.label}</div>
+        </div>
+    `).join('');
 }
 
 // Utility functions
@@ -624,6 +800,22 @@ function showMessage(message, type = 'success') {
     setTimeout(() => {
         messageDiv.remove();
     }, 5000);
+}
+
+function showBookingPopup() {
+    const overlay = document.createElement('div');
+    overlay.className = 'popup-overlay';
+    overlay.innerHTML = `
+        <div class="popup-box">
+            <div class="popup-icon">🎉</div>
+            <h2 class="popup-title">Congratulations!</h2>
+            <p class="popup-message">Your booking request has been submitted successfully!</p>
+            <p class="popup-submsg">You will be notified once an admin reviews your request.</p>
+            <button class="popup-btn" onclick="this.closest('.popup-overlay').remove()">Got it!</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('popup-show'));
 }
 
 function formatDate(dateString) {
@@ -650,6 +842,332 @@ function logout() {
         sessionStorage.removeItem('user');
         window.location.href = 'login.html';
     }
+}
+
+// ============ WITHDRAW BOOKING ============
+async function withdrawBooking(bookingId) {
+    if (!confirm('Are you sure you want to withdraw this booking?')) return;
+
+    try {
+        const response = await fetch(`${API_URL}/bookings/${bookingId}/withdraw`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: currentUser.id })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            showWithdrawPopup();
+            loadBookings();
+            loadNotifications();
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error withdrawing booking:', error);
+        showMessage('Failed to withdraw booking', 'error');
+    }
+}
+
+function showWithdrawPopup() {
+    const overlay = document.createElement('div');
+    overlay.className = 'popup-overlay';
+    overlay.innerHTML = `
+        <div class="popup-box">
+            <div class="popup-icon">✅</div>
+            <h2 class="popup-title" style="color: #ff9800;">Booking Withdrawn</h2>
+            <p class="popup-message">Your booking request has been cancelled successfully!</p>
+            <p class="popup-submsg">This action has been recorded in your notifications.</p>
+            <button class="popup-btn" onclick="this.closest('.popup-overlay').remove()">Got it!</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('popup-show'));
+}
+
+// ============ BOOKED RESOURCES ============
+let allBookedResources = [];
+
+async function loadBookedResources() {
+    try {
+        const response = await fetch(`${API_URL}/bookings/all-booked`);
+        const data = await response.json();
+
+        if (data.success) {
+            allBookedResources = data.bookings;
+            renderBookedResources(allBookedResources);
+        }
+    } catch (error) {
+        console.error('Error loading booked resources:', error);
+    }
+}
+
+function renderBookedResources(bookings) {
+    const tbody = document.getElementById('bookedResourcesBody');
+    const emptyState = document.getElementById('bookedResourcesEmpty');
+    const tableWrapper = document.querySelector('.booked-resources-table-wrapper');
+
+    if (!bookings || bookings.length === 0) {
+        tbody.innerHTML = '';
+        tableWrapper.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+    }
+
+    tableWrapper.style.display = 'block';
+    emptyState.style.display = 'none';
+
+    const typeIcons = {
+        'classroom': '🏫', 'lab': '🔬', 'auditorium': '🎭',
+        'sport ground': '⚽', 'workshop': '🔧', 'meeting room': '🤝'
+    };
+
+    tbody.innerHTML = bookings.map((b, i) => `
+        <tr>
+            <td>${i + 1}</td>
+            <td><strong>${escapeHTML(b.resource_name)}</strong></td>
+            <td><span class="booked-type-badge booked-type-${b.resource_type.replace(/\s/g, '-')}">${typeIcons[b.resource_type] || '📦'} ${escapeHTML(b.resource_type)}</span></td>
+            <td>${b.booking_date}</td>
+            <td>${formatTime(b.start_time)} – ${formatTime(b.end_time)}</td>
+            <td>${escapeHTML(b.location || 'N/A')}</td>
+            <td>${escapeHTML(b.user_name)} <span class="booked-role">(${escapeHTML(b.user_role)})</span></td>
+            <td class="booked-purpose">${escapeHTML(b.purpose || '—')}</td>
+        </tr>
+    `).join('');
+}
+
+function escapeHTML(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function formatTime(timeStr) {
+    if (!timeStr) return '';
+    const [h, m] = timeStr.split(':');
+    const hour = parseInt(h);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const h12 = hour % 12 || 12;
+    return `${h12}:${m} ${ampm}`;
+}
+
+function filterBookedResources() {
+    const search = (document.getElementById('bookedSearchInput').value || '').toLowerCase();
+    const typeFilter = document.getElementById('bookedTypeFilter').value;
+
+    const filtered = allBookedResources.filter(b => {
+        const matchesType = typeFilter === 'all' || b.resource_type === typeFilter;
+        const matchesSearch = !search ||
+            b.resource_name.toLowerCase().includes(search) ||
+            b.user_name.toLowerCase().includes(search) ||
+            (b.location && b.location.toLowerCase().includes(search)) ||
+            (b.purpose && b.purpose.toLowerCase().includes(search));
+        return matchesType && matchesSearch;
+    });
+
+    renderBookedResources(filtered);
+}
+
+// Attach filter listeners after DOM loads
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('bookedSearchInput');
+    const typeFilter = document.getElementById('bookedTypeFilter');
+    if (searchInput) searchInput.addEventListener('input', filterBookedResources);
+    if (typeFilter) typeFilter.addEventListener('change', filterBookedResources);
+});
+
+// ============ CAMPUS CALENDAR ============
+let campusCalendar = null;
+let allCalendarEvents = [];
+let calendarFilterType = 'all';
+
+function initCalendar() {
+    if (campusCalendar) {
+        loadCalendarEvents();
+        return;
+    }
+
+    const calendarEl = document.getElementById('campusCalendar');
+    campusCalendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        height: 'auto',
+        navLinks: true,
+        editable: false,
+        selectable: false,
+        eventDisplay: 'block',
+        dayMaxEvents: 3,
+        eventTimeFormat: {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        },
+        eventClick: function(info) {
+            info.jsEvent.preventDefault();
+            showEventPopup(info.event);
+        },
+        eventDidMount: function(info) {
+            const gradient = info.event.extendedProps.gradient;
+            if (gradient) {
+                info.el.style.background = gradient;
+                info.el.style.border = 'none';
+                info.el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+            }
+            info.el.style.cursor = 'pointer';
+            info.el.style.transition = 'transform 0.15s ease, box-shadow 0.15s ease';
+
+            info.el.addEventListener('mouseenter', () => {
+                info.el.style.transform = 'scale(1.04)';
+                info.el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.25)';
+                info.el.style.zIndex = '5';
+                showCalendarTooltip(info.event, info.el);
+            });
+            info.el.addEventListener('mouseleave', () => {
+                info.el.style.transform = 'scale(1)';
+                info.el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+                info.el.style.zIndex = '';
+                hideCalendarTooltip();
+            });
+        },
+        eventContent: function(arg) {
+            const type = arg.event.extendedProps.resourceType || '';
+            const typeIcons = {
+                'classroom': '🏫', 'lab': '🔬', 'auditorium': '🎭',
+                'sport ground': '⚽', 'workshop': '🔧', 'meeting room': '🤝'
+            };
+            const icon = typeIcons[type] || '📌';
+            return {
+                html: `<div class="fc-custom-event">
+                    <span class="fc-event-icon">${icon}</span>
+                    <span class="fc-event-title">${arg.event.title}</span>
+                    <span class="fc-event-time">${arg.timeText}</span>
+                </div>`
+            };
+        },
+        events: []
+    });
+
+    campusCalendar.render();
+    loadCalendarEvents();
+    setupCalendarFilters();
+}
+
+const resourceColorMap = {
+    'classroom': { bg: '#4CAF50', border: '#388E3C', gradient: 'linear-gradient(135deg, #4CAF50, #66BB6A)' },
+    'lab': { bg: '#2196F3', border: '#1565C0', gradient: 'linear-gradient(135deg, #2196F3, #42A5F5)' },
+    'auditorium': { bg: '#9C27B0', border: '#7B1FA2', gradient: 'linear-gradient(135deg, #9C27B0, #BA68C8)' },
+    'sport ground': { bg: '#FF5722', border: '#D84315', gradient: 'linear-gradient(135deg, #FF5722, #FF8A65)' },
+    'workshop': { bg: '#FF9800', border: '#EF6C00', gradient: 'linear-gradient(135deg, #FF9800, #FFB74D)' },
+    'meeting room': { bg: '#00BCD4', border: '#00838F', gradient: 'linear-gradient(135deg, #00BCD4, #4DD0E1)' }
+};
+
+const defaultColor = { bg: '#1d4ed8', border: '#1e40af', gradient: 'linear-gradient(135deg, #1d4ed8, #2563eb)' };
+
+async function loadCalendarEvents() {
+    try {
+        const response = await fetch(`${API_URL}/bookings/calendar`);
+        const data = await response.json();
+
+        if (data.success) {
+            allCalendarEvents = data.bookings.map(b => {
+                const dateStr = b.booking_date.split('T')[0];
+                const colors = resourceColorMap[b.resource_type] || defaultColor;
+                return {
+                    id: b.id,
+                    title: `${b.resource_name}`,
+                    start: `${dateStr}T${b.start_time}`,
+                    end: `${dateStr}T${b.end_time}`,
+                    backgroundColor: colors.bg,
+                    borderColor: colors.border,
+                    textColor: '#fff',
+                    extendedProps: {
+                        bookedBy: b.user_name,
+                        role: b.user_role,
+                        location: b.location,
+                        purpose: b.purpose,
+                        resourceType: b.resource_type,
+                        date: dateStr,
+                        startTime: b.start_time,
+                        endTime: b.end_time,
+                        gradient: colors.gradient
+                    }
+                };
+            });
+
+            applyCalendarFilter();
+        }
+    } catch (error) {
+        console.error('Error loading calendar events:', error);
+    }
+}
+
+function applyCalendarFilter() {
+    if (!campusCalendar) return;
+
+    campusCalendar.removeAllEvents();
+
+    const filtered = calendarFilterType === 'all'
+        ? allCalendarEvents
+        : allCalendarEvents.filter(e => e.extendedProps.resourceType === calendarFilterType);
+
+    filtered.forEach(event => campusCalendar.addEvent(event));
+}
+
+function setupCalendarFilters() {
+    const filterBtns = document.querySelectorAll('.cal-filter-btn');
+    filterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            filterBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            calendarFilterType = btn.getAttribute('data-calfilter');
+            applyCalendarFilter();
+        });
+    });
+}
+
+function showCalendarTooltip(event, el) {
+    hideCalendarTooltip();
+    const props = event.extendedProps;
+    const tip = document.createElement('div');
+    tip.className = 'cal-tooltip';
+    tip.innerHTML = `<strong>${event.title}</strong><br>👤 ${props.bookedBy}<br>🕐 ${props.startTime} - ${props.endTime}<br>📍 ${props.location}`;
+    document.body.appendChild(tip);
+    const rect = el.getBoundingClientRect();
+    tip.style.left = rect.left + rect.width / 2 - tip.offsetWidth / 2 + 'px';
+    tip.style.top = rect.top - tip.offsetHeight - 8 + window.scrollY + 'px';
+}
+
+function hideCalendarTooltip() {
+    document.querySelectorAll('.cal-tooltip').forEach(t => t.remove());
+}
+
+function showEventPopup(event) {
+    hideCalendarTooltip();
+    const props = event.extendedProps;
+    const colors = resourceColorMap[props.resourceType] || defaultColor;
+    const overlay = document.createElement('div');
+    overlay.className = 'event-popup-overlay';
+    overlay.innerHTML = `
+        <div class="event-popup">
+            <h3 style="border-bottom-color: ${colors.bg}">${event.title}</h3>
+            <div class="event-detail"><strong>👤 Booked By:</strong><span>${props.bookedBy} (${props.role})</span></div>
+            <div class="event-detail"><strong>📅 Date:</strong><span>${formatDate(props.date)}</span></div>
+            <div class="event-detail"><strong>🕐 Time:</strong><span>${props.startTime} - ${props.endTime}</span></div>
+            <div class="event-detail"><strong>📍 Location:</strong><span>${props.location}</span></div>
+            <div class="event-detail"><strong>📝 Purpose:</strong><span>${props.purpose}</span></div>
+            <button class="event-close-btn" onclick="this.closest('.event-popup-overlay').remove()">Close</button>
+        </div>
+    `;
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('show'));
 }
 
 // Setup Admin Tabs
