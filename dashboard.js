@@ -506,6 +506,13 @@ function displayMyBookings(bookings) {
                 <p><strong>📍 Location:</strong> ${booking.location}</p>
                 <p><strong>📝 Purpose:</strong> ${booking.purpose}</p>
             </div>
+            ${booking.status === 'approved' && booking.qr_code ? `
+                <div class="booking-qr">
+                    <div class="qr-label">📱 QR Entry Pass</div>
+                    <img src="${booking.qr_code}" alt="Booking QR Code" class="qr-image" onclick="showQRPopup('${booking.qr_code}', '${escapeHTML(booking.resource_name)}', '${formatDate(booking.booking_date)}')">
+                    <div class="qr-hint">Click to enlarge</div>
+                </div>
+            ` : ''}
             ${booking.status === 'pending' || booking.status === 'approved' ? `
                 <div class="booking-actions">
                     <button class="btn-withdraw" onclick="withdrawBooking(${booking.id})">Withdraw Request</button>
@@ -961,6 +968,24 @@ function showBookingPopup() {
             <p class="popup-message">Your booking request has been submitted successfully!</p>
             <p class="popup-submsg">You will be notified once an admin reviews your request.</p>
             <button class="popup-btn" onclick="this.closest('.popup-overlay').remove()">Got it!</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('popup-show'));
+}
+
+function showQRPopup(qrSrc, resourceName, date) {
+    const overlay = document.createElement('div');
+    overlay.className = 'popup-overlay';
+    overlay.innerHTML = `
+        <div class="qr-popup-box">
+            <button class="qr-popup-close" onclick="this.closest('.popup-overlay').remove()">&times;</button>
+            <div class="qr-popup-title">📱 QR Entry Pass</div>
+            <div class="qr-popup-resource">${resourceName}</div>
+            <div class="qr-popup-date">${date}</div>
+            <img src="${qrSrc}" alt="QR Code" class="qr-popup-image">
+            <div class="qr-popup-hint">Show this QR code at the venue for entry</div>
+            <button class="popup-btn" onclick="this.closest('.popup-overlay').remove()">Close</button>
         </div>
     `;
     document.body.appendChild(overlay);
