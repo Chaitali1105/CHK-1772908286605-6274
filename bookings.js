@@ -35,207 +35,6 @@ router.get('/resources/available', async (req, res) => {
     }
 });
 
-// Check slot availability and suggest alternatives
-router.get('/bookings/check-availability', async (req, res) => {
-    try {
-        const { resource_id, booking_date, start_time, end_time } = req.query;
-
-        if (!resource_id || !booking_date || !start_time || !end_time) {
-            return res.status(400).json({ success: false, message: 'resource_id, booking_date, start_time, end_time are required' });
-        }
-
-        // Check for conflicting bookings on the requested slot
-        const [conflicts] = await db.query(
-            `SELECT id, resource_name, user_name, user_role, start_time, end_time, status
-             FROM bookings
-             WHERE resource_id = ?
-             AND booking_date = ?
-             AND status IN ('pending', 'approved')
-             AND (
-                 (start_time <= ? AND end_time > ?) OR
-                 (start_time < ? AND end_time >= ?) OR
-                 (start_time >= ? AND end_time <= ?)
-             )
-             ORDER BY start_time ASC`,
-            [resource_id, booking_date, start_time, start_time, end_time, end_time, start_time, end_time]
-        );
-
-        const isAvailable = conflicts.length === 0;
-
-        // Fetch all booked slots for this resource on this date
-        const [dayBookings] = await db.query(
-            `SELECT start_time, end_time, status, user_name, user_role
-             FROM bookings
-             WHERE resource_id = ? AND booking_date = ? AND status IN ('pending', 'approved')
-             ORDER BY start_time ASC`,
-            [resource_id, booking_date]
-        );
-
-        // Calculate suggested alternative slots
-        const suggestions = [];
-        const requestedDuration = timeToMinutes(end_time) - timeToMinutes(start_time);
-        if (requestedDuration <= 0) {
-            return res.json({ success: true, available: false, conflicts: [], suggestions: [], dayBookings: [] });
-        }
-
-        // Campus operating hours: 7:00 AM to 10:00 PM
-        const dayStart = 7 * 60;  // 420 min
-        const dayEnd = 22 * 60;   // 1320 min
-
-        // Build occupied intervals (merge overlapping)
-        const occupied = dayBookings.map(b => ({
-            start: timeToMinutes(b.start_time),
-            end: timeToMinutes(b.end_time)
-        })).sort((a, b) => a.start - b.start);
-
-        const merged = [];
-        for (const interval of occupied) {
-            if (merged.length && interval.start <= merged[merged.length - 1].end) {
-                merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, interval.end);
-            } else {
-                merged.push({ ...interval });
-            }
-        }
-
-        // Find free gaps
-        let cursor = dayStart;
-        for (const block of merged) {
-            if (block.start > cursor) {
-                const gapLen = block.start - cursor;
-                if (gapLen >= requestedDuration) {
-                    suggestions.push({
-                        start_time: minutesToTime(cursor),
-                        end_time: minutesToTime(cursor + requestedDuration)
-                    });
-                }
-            }
-            cursor = Math.max(cursor, block.end);
-        }
-        // Gap after last booking to end of day
-        if (dayEnd > cursor && (dayEnd - cursor) >= requestedDuration) {
-            suggestions.push({
-                start_time: minutesToTime(cursor),
-                end_time: minutesToTime(cursor + requestedDuration)
-            });
-        }
-
-        // Limit to 5 suggestions
-        res.json({
-            success: true,
-            available: isAvailable,
-            conflicts,
-            suggestions: suggestions.slice(0, 5),
-            dayBookings
-        });
-    } catch (error) {
-        console.error('Error checking availability:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
-});
-
-// Get conflict recommendations for admin
-router.get('/bookings/conflict-check/:bookingId', async (req, res) => {
-    try {
-        const { bookingId } = req.params;
-
-        // Get the booking in question
-        const [bookings] = await db.query(
-            `SELECT *, DATE_FORMAT(booking_date, '%Y-%m-%d') as booking_date FROM bookings WHERE id = ?`,
-            [bookingId]
-        );
-        if (bookings.length === 0) {
-            return res.status(404).json({ success: false, message: 'Booking not found' });
-        }
-        const booking = bookings[0];
-
-        // Find overlapping bookings for same resource/date (excluding this one)
-        const [overlapping] = await db.query(
-            `SELECT id, user_name, user_role, start_time, end_time, status,
-                    DATE_FORMAT(booking_date, '%Y-%m-%d') as booking_date
-             FROM bookings
-             WHERE resource_id = ? AND booking_date = ? AND id != ? AND status IN ('pending', 'approved')
-             AND (
-                 (start_time <= ? AND end_time > ?) OR
-                 (start_time < ? AND end_time >= ?) OR
-                 (start_time >= ? AND end_time <= ?)
-             )
-             ORDER BY start_time ASC`,
-            [booking.resource_id, booking.booking_date,
-             bookingId,
-             booking.start_time, booking.start_time,
-             booking.end_time, booking.end_time,
-             booking.start_time, booking.end_time]
-        );
-
-        // Suggest alternative slots on same date
-        const [dayBookings] = await db.query(
-            `SELECT start_time, end_time FROM bookings
-             WHERE resource_id = ? AND booking_date = ? AND status IN ('pending', 'approved') AND id != ?
-             ORDER BY start_time ASC`,
-            [booking.resource_id, booking.booking_date, bookingId]
-        );
-
-        const requestedDuration = timeToMinutes(booking.end_time) - timeToMinutes(booking.start_time);
-        const dayStart = 7 * 60;
-        const dayEnd = 22 * 60;
-
-        const occupied = dayBookings.map(b => ({
-            start: timeToMinutes(b.start_time),
-            end: timeToMinutes(b.end_time)
-        })).sort((a, b) => a.start - b.start);
-
-        const merged = [];
-        for (const interval of occupied) {
-            if (merged.length && interval.start <= merged[merged.length - 1].end) {
-                merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, interval.end);
-            } else {
-                merged.push({ ...interval });
-            }
-        }
-
-        const suggestions = [];
-        let cursor = dayStart;
-        for (const block of merged) {
-            if (block.start > cursor && (block.start - cursor) >= requestedDuration) {
-                suggestions.push({
-                    start_time: minutesToTime(cursor),
-                    end_time: minutesToTime(cursor + requestedDuration)
-                });
-            }
-            cursor = Math.max(cursor, block.end);
-        }
-        if (dayEnd > cursor && (dayEnd - cursor) >= requestedDuration) {
-            suggestions.push({
-                start_time: minutesToTime(cursor),
-                end_time: minutesToTime(cursor + requestedDuration)
-            });
-        }
-
-        res.json({
-            success: true,
-            hasConflicts: overlapping.length > 0,
-            overlapping,
-            suggestions: suggestions.slice(0, 5)
-        });
-    } catch (error) {
-        console.error('Error checking conflicts:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
-});
-
-// Helper: convert "HH:MM:SS" or "HH:MM" to minutes
-function timeToMinutes(t) {
-    const parts = t.split(':');
-    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-}
-
-// Helper: convert minutes to "HH:MM"
-function minutesToTime(m) {
-    const h = Math.floor(m / 60).toString().padStart(2, '0');
-    const min = (m % 60).toString().padStart(2, '0');
-    return `${h}:${min}`;
-}
-
 // Create a booking with ACID transaction support
 router.post('/bookings', async (req, res) => {
     const connection = await db.getConnection();
@@ -889,6 +688,170 @@ router.put('/bookings/:id/withdraw', async (req, res) => {
         res.json({ success: true, message: 'Booking withdrawn successfully' });
     } catch (error) {
         console.error('Error withdrawing booking:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Smart Slot Recommendation
+// Input: resource_id, desired_date, start_time, end_time, user_role
+// Output: { available: true/false, conflicts: [...], recommendations: [...] }
+router.get('/bookings/smart-slots', async (req, res) => {
+    try {
+        const { resource_id, desired_date, start_time, end_time, user_role } = req.query;
+
+        if (!resource_id || !desired_date || !start_time || !end_time) {
+            return res.status(400).json({
+                success: false,
+                message: 'resource_id, desired_date, start_time, and end_time are required'
+            });
+        }
+
+        // 1. Check if the requested slot is available
+        const [conflicts] = await db.query(
+            `SELECT b.id, b.user_name, b.user_role, b.start_time, b.end_time, b.purpose, b.status
+             FROM bookings b
+             WHERE b.resource_id = ?
+             AND b.booking_date = ?
+             AND b.status IN ('pending', 'approved')
+             AND (
+                 (b.start_time <= ? AND b.end_time > ?) OR
+                 (b.start_time < ? AND b.end_time >= ?) OR
+                 (b.start_time >= ? AND b.end_time <= ?)
+             )`,
+            [resource_id, desired_date, start_time, start_time, end_time, end_time, start_time, end_time]
+        );
+
+        // 2. Check timetable conflicts for the day-of-week
+        const dayOfWeek = new Date(desired_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+        const [ttConflicts] = await db.query(
+            `SELECT t.subject, t.faculty, t.class_name, t.department, t.semester, t.start_time, t.end_time, t.type
+             FROM timetable t
+             WHERE t.resource_id = ?
+             AND t.day = ?
+             AND (
+                 (t.start_time <= ? AND t.end_time > ?) OR
+                 (t.start_time < ? AND t.end_time >= ?) OR
+                 (t.start_time >= ? AND t.end_time <= ?)
+             )`,
+            [resource_id, dayOfWeek, start_time, start_time, end_time, end_time, start_time, end_time]
+        );
+
+        const isAvailable = conflicts.length === 0 && ttConflicts.length === 0;
+
+        // 3. If unavailable, calculate alternative slots for the same resource on the same date
+        let recommendations = [];
+        if (!isAvailable) {
+            // Get ALL booked slots for this resource on this date
+            const [allBooked] = await db.query(
+                `SELECT start_time, end_time FROM bookings
+                 WHERE resource_id = ? AND booking_date = ? AND status IN ('pending', 'approved')
+                 ORDER BY start_time`,
+                [resource_id, desired_date]
+            );
+
+            // Get ALL timetable slots for this resource on this day
+            const [allTT] = await db.query(
+                `SELECT start_time, end_time FROM timetable
+                 WHERE resource_id = ? AND day = ?
+                 ORDER BY start_time`,
+                [resource_id, dayOfWeek]
+            );
+
+            // Merge all occupied intervals
+            const occupied = [...allBooked, ...allTT].map(s => ({
+                start: s.start_time.substring(0, 5),
+                end: s.end_time.substring(0, 5)
+            }));
+            occupied.sort((a, b) => a.start.localeCompare(b.start));
+
+            // Merge overlapping intervals
+            const merged = [];
+            for (const slot of occupied) {
+                if (merged.length > 0 && slot.start <= merged[merged.length - 1].end) {
+                    merged[merged.length - 1].end = slot.end > merged[merged.length - 1].end ? slot.end : merged[merged.length - 1].end;
+                } else {
+                    merged.push({ ...slot });
+                }
+            }
+
+            // Calculate requested duration in minutes
+            const reqDuration = (parseInt(end_time.split(':')[0]) * 60 + parseInt(end_time.split(':')[1]))
+                - (parseInt(start_time.split(':')[0]) * 60 + parseInt(start_time.split(':')[1]));
+
+            // Find free gaps between 08:00 and 20:00
+            const dayStart = '08:00';
+            const dayEnd = '20:00';
+            const gaps = [];
+            let cursor = dayStart;
+
+            for (const slot of merged) {
+                if (cursor < slot.start) {
+                    gaps.push({ start: cursor, end: slot.start });
+                }
+                if (slot.end > cursor) cursor = slot.end;
+            }
+            if (cursor < dayEnd) {
+                gaps.push({ start: cursor, end: dayEnd });
+            }
+
+            // Generate recommendation slots that fit the requested duration
+            for (const gap of gaps) {
+                const gapStartMin = parseInt(gap.start.split(':')[0]) * 60 + parseInt(gap.start.split(':')[1]);
+                const gapEndMin = parseInt(gap.end.split(':')[0]) * 60 + parseInt(gap.end.split(':')[1]);
+
+                if (gapEndMin - gapStartMin >= reqDuration) {
+                    // Offer up to 2 slots per gap (start of gap, midpoint if fits)
+                    const s1Start = gap.start;
+                    const s1EndMin = gapStartMin + reqDuration;
+                    const s1End = String(Math.floor(s1EndMin / 60)).padStart(2, '0') + ':' + String(s1EndMin % 60).padStart(2, '0');
+                    recommendations.push({ start_time: s1Start, end_time: s1End, date: desired_date });
+
+                    // Another slot starting 1 hour later if it still fits
+                    const s2StartMin = gapStartMin + 60;
+                    const s2EndMin = s2StartMin + reqDuration;
+                    if (s2EndMin <= gapEndMin && s2StartMin !== gapStartMin) {
+                        const s2Start = String(Math.floor(s2StartMin / 60)).padStart(2, '0') + ':' + String(s2StartMin % 60).padStart(2, '0');
+                        const s2End = String(Math.floor(s2EndMin / 60)).padStart(2, '0') + ':' + String(s2EndMin % 60).padStart(2, '0');
+                        recommendations.push({ start_time: s2Start, end_time: s2End, date: desired_date });
+                    }
+                }
+
+                if (recommendations.length >= 5) break;
+            }
+        }
+
+        // 4. Build response based on role
+        const conflictDetails = user_role === 'admin'
+            ? conflicts.map(c => ({
+                booked_by: c.user_name,
+                role: c.user_role,
+                time: `${c.start_time} - ${c.end_time}`,
+                purpose: c.purpose,
+                status: c.status
+            }))
+            : conflicts.map(c => ({
+                time: `${c.start_time} - ${c.end_time}`,
+                status: c.status
+            }));
+
+        const ttDetails = ttConflicts.map(t => ({
+            subject: t.subject,
+            faculty: t.faculty,
+            class_name: t.class_name,
+            time: `${t.start_time} - ${t.end_time}`,
+            type: t.type
+        }));
+
+        res.json({
+            success: true,
+            available: isAvailable,
+            booking_conflicts: conflictDetails,
+            timetable_conflicts: ttDetails,
+            recommendations
+        });
+
+    } catch (error) {
+        console.error('Error in smart slot recommendation:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
