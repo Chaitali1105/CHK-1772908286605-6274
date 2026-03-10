@@ -1739,3 +1739,447 @@ body {
     background: var(--primary-100);
     color: var(--primary-dark);
 }
+
+/* ============ CLASS TIMETABLE ============ */
+.tt-subtitle {
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.tt-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+}
+
+.tt-day-tabs {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.tt-day-btn {
+    padding: 7px 18px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-body);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tt-day-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.tt-day-btn.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
+.tt-controls-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.tt-filters {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.tt-filters select {
+    padding: 7px 10px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-body);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition);
+    min-width: 140px;
+}
+
+.tt-filters select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--shadow-glow);
+}
+
+.tt-reset-btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.tt-legend {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+.tt-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.tt-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    display: inline-block;
+}
+
+.tt-legend-dot.tt-lecture { background: linear-gradient(135deg, #16a34a, #22c55e); }
+.tt-legend-dot.tt-lab { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+.tt-legend-dot.tt-practical { background: linear-gradient(135deg, #ea580c, #f97316); }
+
+/* Timetable Grid */
+.tt-grid-wrapper {
+    overflow: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+}
+
+.tt-grid {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+}
+
+.tt-grid thead th {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    padding: 10px 8px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    white-space: nowrap;
+}
+
+.tt-time-header {
+    width: 90px;
+    min-width: 90px;
+}
+
+.tt-grid tbody td {
+    border: 1px solid var(--border);
+    vertical-align: top;
+    padding: 2px;
+}
+
+.tt-time-cell {
+    background: var(--bg-body);
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--primary-dark);
+    text-align: center;
+    white-space: nowrap;
+    padding: 6px 4px !important;
+    width: 90px;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+
+.tt-data-cell {
+    background: var(--bg-card);
+    transition: background 0.15s ease;
+    position: relative;
+    min-width: 100px;
+    height: 54px;
+}
+
+.tt-data-cell.tt-empty {
+    background: repeating-linear-gradient(
+        45deg,
+        var(--bg-body),
+        var(--bg-body) 8px,
+        transparent 8px,
+        transparent 12px
+    );
+    opacity: 0.4;
+}
+
+/* Timetable Cell Entries */
+.tt-cell-entry {
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.tt-cell-entry:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    z-index: 1;
+}
+
+.tt-cell-entry.tt-lecture {
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+    border-left: 3px solid #16a34a;
+    color: #14532d;
+}
+
+.tt-cell-entry.tt-lab {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    border-left: 3px solid #2563eb;
+    color: #1e3a5f;
+}
+
+.tt-cell-entry.tt-practical {
+    background: linear-gradient(135deg, #ffedd5, #fed7aa);
+    border-left: 3px solid #ea580c;
+    color: #7c2d12;
+}
+
+.tt-cell-subject {
+    font-weight: 700;
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tt-cell-faculty {
+    font-size: 10px;
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tt-cell-room {
+    font-size: 9.5px;
+    opacity: 0.65;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: none;
+}
+
+.tt-cell-type {
+    display: none;
+}
+
+.tt-cell-class {
+    font-size: 9px;
+    opacity: 0.55;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* Timetable Popup */
+.tt-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.tt-popup {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    animation: ttPopupIn 0.25s ease;
+}
+
+@keyframes ttPopupIn {
+    from { opacity: 0; transform: scale(0.9) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.tt-popup-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: var(--text-muted);
+    cursor: pointer;
+    line-height: 1;
+    transition: var(--transition);
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+}
+
+.tt-popup-close:hover {
+    background: var(--bg-body);
+    color: var(--text-primary);
+}
+
+.tt-popup-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--primary);
+    margin-bottom: 20px;
+    padding-right: 36px;
+}
+
+.tt-popup-details {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tt-popup-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--bg-body);
+    border-radius: 10px;
+}
+
+.tt-popup-label {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-muted);
+    min-width: 100px;
+}
+
+.tt-popup-row span:last-child {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+    text-align: right;
+}
+
+/* Timetable Empty State */
+#class-timetable .tt-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+
+#class-timetable .tt-empty-state .icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+#class-timetable .tt-empty-state h3 {
+    font-size: 18px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+#class-timetable .tt-empty-state p {
+    font-size: 14px;
+}
+
+/* Timetable Responsive */
+@media (max-width: 768px) {
+    .tt-controls {
+        padding: 10px;
+    }
+
+    .tt-day-tabs {
+        justify-content: center;
+    }
+
+    .tt-day-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+
+    .tt-filters {
+        flex-direction: column;
+    }
+
+    .tt-filters select {
+        min-width: 100%;
+    }
+
+    .tt-legend {
+        justify-content: center;
+    }
+
+    .tt-popup {
+        padding: 24px;
+        margin: 16px;
+    }
+}
+
+/* Scrollbar styling for timetable grid */
+.tt-grid-wrapper::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.tt-grid-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.tt-grid-wrapper::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.tt-grid-wrapper::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.tt-grid-wrapper::-webkit-scrollbar-track {
+    background: var(--bg-body);
+}
+
+.tt-grid-wrapper::-webkit-scrollbar-thumb {
+    background: var(--primary-light, #93c5fd);
+    border-radius: 3px;
+}

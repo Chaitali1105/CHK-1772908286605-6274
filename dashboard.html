@@ -58,6 +58,10 @@
                     <span class="icon">📆</span>
                     Campus Calendar
                 </a>
+                <a href="#" class="nav-item" data-section="class-timetable">
+                    <span class="icon">🗓️</span>
+                    Class Timetable
+                </a>
                 <a href="#" class="nav-item" data-section="statistics">
                     <span class="icon">📊</span>
                     Statistics
@@ -268,6 +272,65 @@
                     <div class="legend-item"><span class="legend-dot" style="background: linear-gradient(135deg, #00BCD4, #4DD0E1)"></span> Meeting Room</div>
                 </div>
             </section>
+
+            <!-- Class Timetable Section -->
+            <section id="class-timetable" class="content-section">
+                <h2>🗓️ Class Timetable</h2>
+                <p class="tt-subtitle">Weekly class schedule across campus. Click on a cell for details.</p>
+
+                <div class="tt-controls">
+                    <div class="tt-day-tabs" id="ttDayTabs"></div>
+                    <div class="tt-filters">
+                        <select id="ttFilterDepartment">
+                            <option value="">All Departments</option>
+                        </select>
+                        <select id="ttFilterSemester">
+                            <option value="">All Semesters</option>
+                        </select>
+                        <button class="btn btn-secondary tt-reset-btn" onclick="resetTimetableFilters()">Reset</button>
+                    </div>
+                    <div class="tt-legend">
+                        <div class="tt-legend-item"><span class="tt-legend-dot tt-lecture"></span> Lecture</div>
+                        <div class="tt-legend-item"><span class="tt-legend-dot tt-lab"></span> Lab</div>
+                        <div class="tt-legend-item"><span class="tt-legend-dot tt-practical"></span> Practical</div>
+                    </div>
+                </div>
+
+                <div class="tt-grid-wrapper">
+                    <table class="tt-grid" id="timetableGrid">
+                        <thead>
+                            <tr>
+                                <th class="tt-time-header">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timetableBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="tt-empty-state" id="ttEmptyState" style="display: none;">
+                    <div class="icon">🗓️</div>
+                    <h3>No classes found</h3>
+                    <p>Try adjusting your filters or check back later.</p>
+                </div>
+            </section>
+
+            <!-- Timetable Detail Popup -->
+            <div class="tt-popup-overlay" id="ttPopupOverlay" style="display: none;">
+                <div class="tt-popup">
+                    <button class="tt-popup-close" onclick="closeTimetablePopup()">&times;</button>
+                    <h3 class="tt-popup-title" id="ttPopupTitle"></h3>
+                    <div class="tt-popup-details">
+                        <div class="tt-popup-row"><span class="tt-popup-label">Subject</span><span id="ttPopupSubject"></span></div>
+                        <div class="tt-popup-row"><span class="tt-popup-label">Faculty</span><span id="ttPopupFaculty"></span></div>
+                        <div class="tt-popup-row"><span class="tt-popup-label">Classroom</span><span id="ttPopupRoom"></span></div>
+                        <div class="tt-popup-row"><span class="tt-popup-label">Time</span><span id="ttPopupTime"></span></div>
+                        <div class="tt-popup-row"><span class="tt-popup-label">Department</span><span id="ttPopupDept"></span></div>
+                        <div class="tt-popup-row"><span class="tt-popup-label">Semester</span><span id="ttPopupSem"></span></div>
+                        <div class="tt-popup-row"><span class="tt-popup-label">Type</span><span id="ttPopupType"></span></div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Admin Panel Section -->
             <section id="admin-panel" class="content-section">

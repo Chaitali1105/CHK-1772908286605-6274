@@ -115,6 +115,8 @@ function setupNavigation() {
                 loadBookedResources();
             } else if (targetSection === 'campus-calendar') {
                 initCalendar();
+            } else if (targetSection === 'class-timetable') {
+                loadTimetable();
             }
         });
     });
@@ -1371,5 +1373,221 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target === modal) {
             closeResourceModal();
         }
+        const ttOverlay = document.getElementById('ttPopupOverlay');
+        if (event.target === ttOverlay) {
+            closeTimetablePopup();
+        }
     };
 });
+
+// ============ CLASS TIMETABLE ============
+let allTimetableData = [];
+let timetableFiltersLoaded = false;
+let ttSelectedDay = 'Monday';
+let ttRoomList = [];
+
+const TT_TIME_SLOTS = [
+    { label: '09:00 - 10:00', start: '09:00:00', end: '10:00:00' },
+    { label: '10:00 - 11:00', start: '10:00:00', end: '11:00:00' },
+    { label: '11:00 - 12:00', start: '11:00:00', end: '12:00:00' },
+    { label: '12:00 - 13:00', start: '12:00:00', end: '13:00:00' },
+    { label: '14:00 - 15:00', start: '14:00:00', end: '15:00:00' },
+    { label: '15:00 - 16:00', start: '15:00:00', end: '16:00:00' }
+];
+
+const TT_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+async function loadTimetable() {
+    if (!timetableFiltersLoaded) {
+        await loadTimetableFilters();
+        setupTimetableFilterListeners();
+        setupDayTabs();
+        timetableFiltersLoaded = true;
+    }
+    await fetchTimetableData();
+}
+
+async function loadTimetableFilters() {
+    try {
+        const response = await fetch(`${API_URL}/timetable/filters`);
+        const data = await response.json();
+        if (data.success) {
+            const deptSelect = document.getElementById('ttFilterDepartment');
+            const semSelect = document.getElementById('ttFilterSemester');
+
+            ttRoomList = data.classrooms;
+
+            data.departments.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.textContent = d;
+                deptSelect.appendChild(opt);
+            });
+
+            data.semesters.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = 'Semester ' + s;
+                semSelect.appendChild(opt);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading timetable filters:', error);
+    }
+}
+
+function setupDayTabs() {
+    const container = document.getElementById('ttDayTabs');
+    TT_DAYS.forEach(day => {
+        const btn = document.createElement('button');
+        btn.className = 'tt-day-btn' + (day === ttSelectedDay ? ' active' : '');
+        btn.textContent = day.substring(0, 3);
+        btn.setAttribute('data-day', day);
+        btn.addEventListener('click', () => {
+            ttSelectedDay = day;
+            container.querySelectorAll('.tt-day-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderTimetableGrid();
+        });
+        container.appendChild(btn);
+    });
+}
+
+function setupTimetableFilterListeners() {
+    document.getElementById('ttFilterDepartment').addEventListener('change', fetchTimetableData);
+    document.getElementById('ttFilterSemester').addEventListener('change', fetchTimetableData);
+}
+
+async function fetchTimetableData() {
+    try {
+        const department = document.getElementById('ttFilterDepartment').value;
+        const semester = document.getElementById('ttFilterSemester').value;
+
+        const params = new URLSearchParams();
+        if (department) params.append('department', department);
+        if (semester) params.append('semester', semester);
+
+        const response = await fetch(`${API_URL}/timetable?${params.toString()}`);
+        const data = await response.json();
+
+        if (data.success) {
+            allTimetableData = data.timetable;
+            renderTimetableGrid();
+        }
+    } catch (error) {
+        console.error('Error fetching timetable:', error);
+    }
+}
+
+function renderTimetableGrid() {
+    const thead = document.querySelector('#timetableGrid thead tr');
+    const tbody = document.getElementById('timetableBody');
+    const emptyState = document.getElementById('ttEmptyState');
+    const gridWrapper = document.querySelector('.tt-grid-wrapper');
+
+    // Filter data for selected day
+    const dayData = allTimetableData.filter(e => e.day === ttSelectedDay);
+
+    if (dayData.length === 0) {
+        tbody.innerHTML = '';
+        gridWrapper.style.display = 'none';
+        emptyState.style.display = 'flex';
+        return;
+    }
+
+    gridWrapper.style.display = 'block';
+    emptyState.style.display = 'none';
+
+    // Get rooms that have classes on this day (with current filters)
+    const roomIds = [...new Set(dayData.map(e => e.resource_id))];
+    const rooms = roomIds.map(id => {
+        const entry = dayData.find(e => e.resource_id === id);
+        return { id, name: entry.room_name };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+
+    // Build header: Time Slot + one column per room
+    thead.innerHTML = '<th class="tt-time-header">Time</th>' +
+        rooms.map(r => `<th>${escapeHTML(r.name)}</th>`).join('');
+
+    // Build lookup: roomId_startTime => entry
+    const lookup = {};
+    const spannedCells = {};
+
+    dayData.forEach(entry => {
+        const startIdx = TT_TIME_SLOTS.findIndex(s => s.start === entry.start_time);
+        const endIdx = TT_TIME_SLOTS.findIndex(s => s.end === entry.end_time);
+        if (startIdx === -1 || endIdx === -1) return;
+
+        const rowspan = endIdx - startIdx + 1;
+        const key = `${entry.resource_id}_${startIdx}`;
+        lookup[key] = { entry, rowspan };
+
+        for (let i = startIdx + 1; i <= endIdx; i++) {
+            spannedCells[`${entry.resource_id}_${i}`] = true;
+        }
+    });
+
+    let html = '';
+    TT_TIME_SLOTS.forEach((slot, slotIdx) => {
+        html += '<tr>';
+        html += `<td class="tt-time-cell">${slot.label}</td>`;
+
+        rooms.forEach(room => {
+            const key = `${room.id}_${slotIdx}`;
+            if (spannedCells[key]) return;
+
+            const cell = lookup[key];
+            if (cell) {
+                const e = cell.entry;
+                const rs = cell.rowspan > 1 ? ` rowspan="${cell.rowspan}"` : '';
+                const tc = `tt-${e.type}`;
+                html += `<td class="tt-data-cell"${rs}>
+                    <div class="tt-cell-entry ${tc}" onclick='showTimetablePopup(${JSON.stringify(e).replace(/'/g, "&#39;")})'>
+                        <div class="tt-cell-subject">${escapeHTML(e.subject)}</div>
+                        <div class="tt-cell-faculty">${escapeHTML(e.faculty)}</div>
+                        <div class="tt-cell-class">${escapeHTML(e.class_name)}</div>
+                    </div>
+                </td>`;
+            } else {
+                html += '<td class="tt-data-cell tt-empty"></td>';
+            }
+        });
+
+        html += '</tr>';
+    });
+
+    tbody.innerHTML = html;
+}
+
+function showTimetablePopup(entry) {
+    document.getElementById('ttPopupTitle').textContent = entry.class_name;
+    document.getElementById('ttPopupSubject').textContent = entry.subject;
+    document.getElementById('ttPopupFaculty').textContent = entry.faculty;
+    document.getElementById('ttPopupRoom').textContent = `${entry.room_name} (${entry.building}, Floor ${entry.floor_no}, Room ${entry.room_no})`;
+    document.getElementById('ttPopupTime').textContent = `${formatTimetableTime(entry.start_time)} - ${formatTimetableTime(entry.end_time)}`;
+    document.getElementById('ttPopupDept').textContent = entry.department;
+    document.getElementById('ttPopupSem').textContent = 'Semester ' + entry.semester;
+    document.getElementById('ttPopupType').textContent = entry.type.charAt(0).toUpperCase() + entry.type.slice(1);
+    document.getElementById('ttPopupOverlay').style.display = 'flex';
+}
+
+function closeTimetablePopup() {
+    document.getElementById('ttPopupOverlay').style.display = 'none';
+}
+
+function resetTimetableFilters() {
+    document.getElementById('ttFilterDepartment').value = '';
+    document.getElementById('ttFilterSemester').value = '';
+    fetchTimetableData();
+}
+
+function formatTimetableTime(timeStr) {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    let h = parseInt(parts[0]);
+    const m = parts[1];
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    if (h > 12) h -= 12;
+    if (h === 0) h = 12;
+    return `${h}:${m} ${ampm}`;
+}
