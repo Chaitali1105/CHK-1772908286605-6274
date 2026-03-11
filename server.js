@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const bookingsRoutes = require('./routes/bookings');
+const timetableRoutes = require('./routes/timetable');
 
 const app = express();
 const PORT = 5000;
@@ -14,6 +15,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/', authRoutes);
 app.use('/', bookingsRoutes);
+app.use('/', timetableRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
