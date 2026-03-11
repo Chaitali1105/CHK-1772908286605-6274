@@ -4,12 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - BookMyCampus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <div class="auth-card">
             <div class="header">
+                <div class="logo">
+                    <img src="images/logo.svg" alt="BookMyCampus" style="height: 100px; width: auto;">
+                </div>
                 <h1>BookMyCampus</h1>
                 <p>Welcome back! Please login to your account</p>
             </div>
@@ -34,6 +40,16 @@
                         name="password" 
                         placeholder="Enter your password" 
                         required
+                    >
+                </div>
+
+                <div class="form-group" id="secretKeyGroup" style="display: none;">
+                    <label for="secretKey">🔐 Admin Secret Key</label>
+                    <input 
+                        type="password" 
+                        id="secretKey" 
+                        name="secretKey" 
+                        placeholder="Enter admin secret key"
                     >
                 </div>
 

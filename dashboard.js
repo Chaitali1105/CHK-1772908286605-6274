@@ -1174,7 +1174,6 @@ function initCalendar() {
         navLinks: true,
         editable: false,
         selectable: false,
-        eventDisplay: 'block',
         dayMaxEvents: 3,
         eventTimeFormat: {
             hour: '2-digit',

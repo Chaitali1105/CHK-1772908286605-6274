@@ -26,6 +26,20 @@ function showMessage(message, type = 'success') {
 
 // Handle Signup Form
 if (document.getElementById('signupForm')) {
+    // Show/hide secret key field based on role selection
+    const roleSelect = document.getElementById('role');
+    const secretKeyGroup = document.getElementById('secretKeyGroup');
+    roleSelect.addEventListener('change', () => {
+        if (roleSelect.value === 'admin') {
+            secretKeyGroup.style.display = 'block';
+            document.getElementById('secretKey').required = true;
+        } else {
+            secretKeyGroup.style.display = 'none';
+            document.getElementById('secretKey').required = false;
+            document.getElementById('secretKey').value = '';
+        }
+    });
+
     document.getElementById('signupForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -34,6 +48,7 @@ if (document.getElementById('signupForm')) {
         const password = document.getElementById('password').value;
         const confirmPassword = document.getElementById('confirmPassword').value;
         const role = document.getElementById('role').value;
+        const secretKey = document.getElementById('secretKey').value;
 
         // Client-side validation
         if (!name || !email || !password || !confirmPassword || !role) {
@@ -48,6 +63,11 @@ if (document.getElementById('signupForm')) {
 
         if (password.length < 6) {
             showMessage('Password must be at least 6 characters long', 'error');
+            return;
+        }
+
+        if (role === 'admin' && !secretKey) {
+            showMessage('Admin secret key is required', 'error');
             return;
         }
 
@@ -66,7 +86,8 @@ if (document.getElementById('signupForm')) {
                     name,
                     email,
                     password,
-                    role
+                    role,
+                    secretKey
                 })
             });
 
@@ -98,6 +119,8 @@ if (document.getElementById('loginForm')) {
 
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
+        const secretKeyEl = document.getElementById('secretKey');
+        const secretKey = secretKeyEl ? secretKeyEl.value : '';
 
         // Client-side validation
         if (!email || !password) {
@@ -118,7 +141,8 @@ if (document.getElementById('loginForm')) {
                 },
                 body: JSON.stringify({
                     email,
-                    password
+                    password,
+                    secretKey
                 })
             });
 
@@ -139,7 +163,17 @@ if (document.getElementById('loginForm')) {
                     window.location.href = 'dashboard.html';
                 }, 1500);
             } else {
-                showMessage(data.message || 'Login failed', 'error');
+                // If admin secret key is required, show the field
+                if (response.status === 403 && data.message && data.message.includes('Admin secret key')) {
+                    const secretKeyGroup = document.getElementById('secretKeyGroup');
+                    if (secretKeyGroup) {
+                        secretKeyGroup.style.display = 'block';
+                        document.getElementById('secretKey').focus();
+                    }
+                    showMessage('Admin account detected. Please enter your secret key.', 'error');
+                } else {
+                    showMessage(data.message || 'Login failed', 'error');
+                }
             }
 
             submitBtn.disabled = false;
@@ -153,3 +187,5 @@ if (document.getElementById('loginForm')) {
         }
     });
 }
+
+
